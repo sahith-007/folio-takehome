@@ -82,6 +82,50 @@ test('seed runs SQL migrations in filename order', function () {
     assert_true($row['note'] === 'applied in order', 'unexpected migration note: ' . var_export($row['note'], true));
 });
 
+test('admin document creation logs document_created with the new document ID', function () {
+    $title = 'Route-level audit log test';
+    $body = 'Route-level audit log test body.';
+    $script = __DIR__ . '/fixtures/create_document.php';
+
+    system(
+        'php '
+        . escapeshellarg($script)
+        . ' '
+        . escapeshellarg($title)
+        . ' '
+        . escapeshellarg($body)
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'document creation fixture failed');
+
+    $docStmt = db()->prepare('
+        SELECT id
+        FROM documents
+        WHERE title = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $docStmt->execute([$title]);
+    $doc = $docStmt->fetch();
+
+    assert_true($doc !== false, 'expected created document row');
+
+    $auditStmt = db()->prepare('
+        SELECT action, entity_type, entity_id
+        FROM audit_log
+        WHERE entity_type = ? AND entity_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $auditStmt->execute(['document', $doc['id']]);
+    $audit = $auditStmt->fetch();
+
+    assert_true($audit !== false, 'expected document audit log row');
+    assert_true($audit['action'] === 'document_created', 'unexpected audit action: ' . var_export($audit['action'], true));
+    assert_true((int) $audit['entity_id'] === (int) $doc['id'], 'expected audit row to reference the new document');
+});
+
 test('seeded share link resolves to the seeded document', function () {
     $stmt = db()->prepare('
         SELECT d.title

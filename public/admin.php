@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$title, $body, $staff['id']]);
         $docId = (int) db()->lastInsertId();
 
-        audit_log('create', 'document', $docId, ['title' => $title]);
+        audit_log('document_created', 'document', $docId, ['title' => $title]);
 
         header('Location: /admin.php?created=' . $docId);
         exit;
