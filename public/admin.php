@@ -5,6 +5,7 @@ require __DIR__ . '/../lib/layout.php';
 
 $staff = current_staff();
 $error = null;
+$searchQuery = trim($_GET['q'] ?? '');
 $form = [
     'title' => '',
     'body' => '',
@@ -40,12 +41,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$docs = db()->query('
-    SELECT d.*, s.name AS creator_name
-    FROM documents d
-    JOIN staff s ON s.id = d.created_by
-    ORDER BY d.created_at DESC
-')->fetchAll();
+if ($searchQuery !== '') {
+    $stmt = db()->prepare('
+        SELECT d.*, s.name AS creator_name
+        FROM documents d
+        JOIN staff s ON s.id = d.created_by
+        WHERE lower(d.title) LIKE ?
+        ORDER BY d.created_at DESC
+    ');
+    $stmt->execute(['%' . strtolower($searchQuery) . '%']);
+    $docs = $stmt->fetchAll();
+} else {
+    $docs = db()->query('
+        SELECT d.*, s.name AS creator_name
+        FROM documents d
+        JOIN staff s ON s.id = d.created_by
+        ORDER BY d.created_at DESC
+    ')->fetchAll();
+}
 
 render_header('Admin', $staff);
 ?>
@@ -83,8 +96,25 @@ render_header('Admin', $staff);
 
 <section class="card">
     <h2 class="card-title">Documents</h2>
+    <form method="get" class="search-form">
+        <div class="form-field search-field">
+            <label for="q">Find by title</label>
+            <div class="search-row">
+                <input type="text" id="q" name="q" value="<?= h($searchQuery) ?>" placeholder="Search documents by title">
+                <button type="submit" class="btn">Search</button>
+                <?php if ($searchQuery !== ''): ?>
+                    <a href="/admin.php" class="btn-link">Clear</a>
+                <?php endif ?>
+            </div>
+        </div>
+    </form>
+    <?php if ($searchQuery !== ''): ?>
+        <p class="search-summary">
+            Showing <?= count($docs) ?> result<?= count($docs) === 1 ? '' : 's' ?> for "<?= h($searchQuery) ?>".
+        </p>
+    <?php endif ?>
     <?php if (empty($docs)): ?>
-        <p class="empty">No documents yet.</p>
+        <p class="empty"><?= $searchQuery === '' ? 'No documents yet.' : 'No documents match that title search.' ?></p>
     <?php else: ?>
         <table class="data">
             <thead>

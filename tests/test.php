@@ -337,6 +337,51 @@ test('documents get unique readable IDs and staff routes accept them', function 
     assert_true($share !== false, 'expected share route to resolve by readable ID');
 });
 
+test('admin document list supports case-insensitive title search', function () {
+    $createScript = __DIR__ . '/fixtures/create_document.php';
+
+    system(
+        'php '
+        . escapeshellarg($createScript)
+        . ' '
+        . escapeshellarg('Search Needle Packet')
+        . ' '
+        . escapeshellarg('Search match body.')
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'matching document creation fixture failed');
+
+    system(
+        'php '
+        . escapeshellarg($createScript)
+        . ' '
+        . escapeshellarg('Totally Different Memo')
+        . ' '
+        . escapeshellarg('Non-match body.')
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'non-matching document creation fixture failed');
+
+    $renderScript = __DIR__ . '/fixtures/render_admin.php';
+    $output = [];
+    exec(
+        'php '
+        . escapeshellarg($renderScript)
+        . ' '
+        . escapeshellarg('nEeDlE'),
+        $output,
+        $rc
+    );
+    assert_true($rc === 0, 'admin render fixture failed');
+
+    $html = implode("\n", $output);
+    assert_true(str_contains($html, 'Search Needle Packet'), 'expected matching title in search results');
+    assert_true(!str_contains($html, 'Totally Different Memo'), 'expected non-matching title to be filtered out');
+    assert_true(str_contains($html, 'Showing 1 result'), 'expected search summary for filtered results');
+});
+
 test('seeded share link resolves to the seeded document', function () {
     $stmt = db()->prepare('
         SELECT d.title
