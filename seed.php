@@ -2,13 +2,32 @@
 
 require __DIR__ . '/lib/bootstrap.php';
 
+function run_sql_file(PDO $pdo, string $path): void {
+    $sql = file_get_contents($path);
+    if ($sql === false) {
+        throw new RuntimeException('Failed to read SQL file: ' . $path);
+    }
+
+    $pdo->exec($sql);
+}
+
 $dbPath = __DIR__ . '/db.sqlite';
 if (file_exists($dbPath)) {
     unlink($dbPath);
 }
 
 $pdo = db();
-$pdo->exec(file_get_contents(__DIR__ . '/schema.sql'));
+run_sql_file($pdo, __DIR__ . '/schema.sql');
+
+// Seed-time migration runner for fresh local/test databases. We rebuild from
+// schema.sql first, then replay checked-in SQL files in filename order without
+// a versions table so `docker compose up` and the test suite can reseed cleanly.
+$migrationFiles = glob(__DIR__ . '/migrations/*.sql') ?: [];
+sort($migrationFiles, SORT_STRING);
+
+foreach ($migrationFiles as $migrationFile) {
+    run_sql_file($pdo, $migrationFile);
+}
 
 $pdo->exec("
     INSERT INTO staff (email, name) VALUES
