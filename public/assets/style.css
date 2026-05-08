@@ -167,6 +167,12 @@ a:hover { color: var(--accent-hover); }
     box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
 }
 
+.form-hint {
+    margin: 0.4rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+}
+
 .btn {
     display: inline-block;
     padding: 0.55rem 1.15rem;
@@ -286,10 +292,24 @@ table.data td.id {
     font-size: 0.85rem;
 }
 
+.table-actions {
+    white-space: nowrap;
+}
+
+.table-actions a + a {
+    margin-left: 0.75rem;
+}
+
 .meta {
     color: var(--text-muted);
     font-size: 0.9rem;
     margin: 0 0 1.5rem;
+}
+
+.card-copy {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.95rem;
 }
 
 .doc-body {

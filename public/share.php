@@ -51,6 +51,12 @@ render_header('Share · ' . $doc['title'], $staff);
 <h1 class="page-title">Share "<?= h($doc['title']) ?>"</h1>
 <p class="page-subtitle">Generate a one-time link for a recipient.</p>
 
+<?php if (!empty($doc['publish_at']) && !is_document_published($doc['publish_at'])): ?>
+    <div class="banner banner-warn">
+        Recipients will see a not-yet-available message until <?= h(format_publish_at_display($doc['publish_at']) ?? $doc['publish_at']) ?>.
+    </div>
+<?php endif ?>
+
 <?php if ($error): ?>
     <div class="banner banner-error"><?= h($error) ?></div>
 <?php endif ?>

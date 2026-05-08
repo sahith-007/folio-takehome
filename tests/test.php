@@ -126,6 +126,112 @@ test('admin document creation logs document_created with the new document ID', f
     assert_true((int) $audit['entity_id'] === (int) $doc['id'], 'expected audit row to reference the new document');
 });
 
+test('scheduled documents stay hidden until publish time and log schedule changes', function () {
+    $title = 'Scheduled recipient visibility test';
+    $body = 'This body should stay hidden before publish time.';
+    $createScript = __DIR__ . '/fixtures/create_document.php';
+
+    system(
+        'php '
+        . escapeshellarg($createScript)
+        . ' '
+        . escapeshellarg($title)
+        . ' '
+        . escapeshellarg($body)
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'document creation fixture failed');
+
+    $docStmt = db()->prepare('
+        SELECT id, publish_at
+        FROM documents
+        WHERE title = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $docStmt->execute([$title]);
+    $doc = $docStmt->fetch();
+    assert_true($doc !== false, 'expected scheduled document row');
+    $docId = (int) $doc['id'];
+    $docStmt = null;
+
+    $publishInput = '2030-01-15T09:30';
+    $expectedPublishAt = normalize_publish_at_input($publishInput);
+    $updateScript = __DIR__ . '/fixtures/update_document.php';
+
+    system(
+        'php '
+        . escapeshellarg($updateScript)
+        . ' '
+        . escapeshellarg((string) $docId)
+        . ' '
+        . escapeshellarg($title)
+        . ' '
+        . escapeshellarg($body)
+        . ' '
+        . escapeshellarg($publishInput)
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'document update fixture failed');
+
+    $docStmt = db()->prepare('
+        SELECT id, publish_at
+        FROM documents
+        WHERE title = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $docStmt->execute([$title]);
+    $doc = $docStmt->fetch();
+    assert_true($doc !== false, 'expected updated scheduled document row');
+    assert_true($doc['publish_at'] === $expectedPublishAt, 'unexpected stored publish_at: ' . var_export($doc['publish_at'], true));
+    $docStmt = null;
+
+    $auditStmt = db()->prepare('
+        SELECT action, details
+        FROM audit_log
+        WHERE entity_type = ? AND entity_id = ? AND action = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ');
+    $auditStmt->execute(['document', $docId, 'document_schedule_changed']);
+    $audit = $auditStmt->fetch();
+
+    assert_true($audit !== false, 'expected document_schedule_changed audit row');
+
+    $details = json_decode($audit['details'], true);
+    assert_true(is_array($details), 'expected audit details to decode');
+    assert_true(($details['previous_publish_at'] ?? null) === null, 'expected previous publish_at to be null');
+    assert_true(($details['publish_at'] ?? null) === $expectedPublishAt, 'unexpected publish_at audit detail');
+    $auditStmt = null;
+
+    $token = random_token();
+    $shareStmt = db()->prepare('
+        INSERT INTO shares (document_id, token, recipient_email)
+        VALUES (?, ?, ?)
+    ');
+    $shareStmt->execute([$docId, $token, 'scheduled@example.com']);
+    $shareStmt = null;
+
+    $viewScript = __DIR__ . '/fixtures/render_view.php';
+    $output = [];
+    exec(
+        'php '
+        . escapeshellarg($viewScript)
+        . ' '
+        . escapeshellarg($token),
+        $output,
+        $rc
+    );
+    assert_true($rc === 0, 'recipient view fixture failed');
+
+    $html = implode("\n", $output);
+    assert_true(str_contains($html, 'This document is not yet available'), 'expected not-yet-available message');
+    assert_true(!str_contains($html, $body), 'expected scheduled document body to stay hidden');
+});
+
 test('seeded share link resolves to the seeded document', function () {
     $stmt = db()->prepare('
         SELECT d.title

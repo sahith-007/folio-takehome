@@ -5,25 +5,37 @@ require __DIR__ . '/../lib/layout.php';
 
 $staff = current_staff();
 $error = null;
+$form = [
+    'title' => '',
+    'body' => '',
+    'publish_at' => '',
+];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $title = trim($_POST['title'] ?? '');
-    $body = trim($_POST['body'] ?? '');
+    $form['title'] = trim($_POST['title'] ?? '');
+    $form['body'] = trim($_POST['body'] ?? '');
+    $form['publish_at'] = trim($_POST['publish_at'] ?? '');
 
-    if ($title === '' || $body === '') {
+    if ($form['title'] === '' || $form['body'] === '') {
         $error = 'Title and body are required.';
     } else {
-        $stmt = db()->prepare('
-            INSERT INTO documents (title, body, created_by)
-            VALUES (?, ?, ?)
-        ');
-        $stmt->execute([$title, $body, $staff['id']]);
-        $docId = (int) db()->lastInsertId();
+        try {
+            $publishAt = normalize_publish_at_input($form['publish_at']);
+            $stmt = db()->prepare('
+                INSERT INTO documents (title, body, created_by, publish_at)
+                VALUES (?, ?, ?, ?)
+            ');
+            $stmt->execute([$form['title'], $form['body'], $staff['id'], $publishAt]);
+            $docId = (int) db()->lastInsertId();
 
-        audit_log('document_created', 'document', $docId, ['title' => $title]);
+            audit_log('document_created', 'document', $docId, ['title' => $form['title']]);
+            audit_document_schedule_change($docId, null, $publishAt);
 
-        header('Location: /admin.php?created=' . $docId);
-        exit;
+            header('Location: /admin.php?created=' . $docId);
+            exit;
+        } catch (InvalidArgumentException $e) {
+            $error = $e->getMessage();
+        }
     }
 }
 
@@ -53,11 +65,16 @@ render_header('Admin', $staff);
     <form method="post">
         <div class="form-field">
             <label for="title">Title</label>
-            <input type="text" id="title" name="title" required>
+            <input type="text" id="title" name="title" value="<?= h($form['title']) ?>" required>
         </div>
         <div class="form-field">
             <label for="body">Body</label>
-            <textarea id="body" name="body" required></textarea>
+            <textarea id="body" name="body" required><?= h($form['body']) ?></textarea>
+        </div>
+        <div class="form-field">
+            <label for="publish_at">Publish at</label>
+            <input type="datetime-local" id="publish_at" name="publish_at" value="<?= h($form['publish_at']) ?>">
+            <p class="form-hint">Leave blank to make the document available immediately.</p>
         </div>
         <button type="submit" class="btn">Create document</button>
     </form>
@@ -73,6 +90,7 @@ render_header('Admin', $staff);
                 <tr>
                     <th>ID</th>
                     <th>Title</th>
+                    <th>Availability</th>
                     <th>Creator</th>
                     <th>Created</th>
                     <th></th>
@@ -83,9 +101,21 @@ render_header('Admin', $staff);
                     <tr>
                         <td class="id">#<?= (int) $d['id'] ?></td>
                         <td><?= h($d['title']) ?></td>
+                        <td>
+                            <?php if (empty($d['publish_at'])): ?>
+                                Available now
+                            <?php elseif (is_document_published($d['publish_at'])): ?>
+                                Published <?= h(format_publish_at_display($d['publish_at']) ?? $d['publish_at']) ?>
+                            <?php else: ?>
+                                Scheduled for <?= h(format_publish_at_display($d['publish_at']) ?? $d['publish_at']) ?>
+                            <?php endif ?>
+                        </td>
                         <td><?= h($d['creator_name']) ?></td>
                         <td><?= h($d['created_at']) ?></td>
-                        <td><a href="/share.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Create share →</a></td>
+                        <td class="table-actions">
+                            <a href="/document.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Edit</a>
+                            <a href="/share.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Create share</a>
+                        </td>
                     </tr>
                 <?php endforeach ?>
             </tbody>
