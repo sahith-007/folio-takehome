@@ -1,6 +1,6 @@
 <?php
 
-date_default_timezone_set('America/Chicago');
+date_default_timezone_set('America/Los_Angeles');
 
 function app_timezone(): DateTimeZone {
     static $timezone = null;
@@ -90,17 +90,21 @@ function format_publish_at_input(?string $publishAt): string {
     return $date->setTimezone(app_timezone())->format('Y-m-d\TH:i');
 }
 
-function format_publish_at_display(?string $publishAt): ?string {
-    if ($publishAt === null || $publishAt === '') {
+function format_utc_timestamp_display(?string $timestamp): ?string {
+    if ($timestamp === null || $timestamp === '') {
         return null;
     }
 
-    $date = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $publishAt, utc_timezone());
+    $date = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $timestamp, utc_timezone());
     if ($date === false) {
-        return $publishAt;
+        return $timestamp;
     }
 
     return $date->setTimezone(app_timezone())->format('M j, Y g:i A T');
+}
+
+function format_publish_at_display(?string $publishAt): ?string {
+    return format_utc_timestamp_display($publishAt);
 }
 
 function is_document_published(?string $publishAt): bool {

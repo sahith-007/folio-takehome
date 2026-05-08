@@ -88,7 +88,7 @@ render_header('Admin', $staff);
         <div class="form-field">
             <label for="publish_at">Publish at</label>
             <input type="datetime-local" id="publish_at" name="publish_at" value="<?= h($form['publish_at']) ?>">
-            <p class="form-hint">Leave blank to make the document available immediately.</p>
+            <p class="form-hint">Leave blank to make the document available immediately. Times use Los Angeles time.</p>
         </div>
         <button type="submit" class="btn">Create document</button>
     </form>
@@ -146,7 +146,7 @@ render_header('Admin', $staff);
                             <?php endif ?>
                         </td>
                         <td><?= h($d['creator_name']) ?></td>
-                        <td><?= h($d['created_at']) ?></td>
+                        <td><?= h(format_utc_timestamp_display($d['created_at']) ?? $d['created_at']) ?></td>
                         <td class="table-actions">
                             <a href="/document.php?doc=<?= urlencode($adminIdentifier) ?>" class="btn-link">Edit</a>
                             <a href="/share.php?doc=<?= urlencode($adminIdentifier) ?>" class="btn-link">Create share</a>

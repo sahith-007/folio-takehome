@@ -83,7 +83,7 @@ render_header('Edit · ' . $doc['title'], $staff);
         <div class="form-field">
             <label for="publish_at">Publish at</label>
             <input type="datetime-local" id="publish_at" name="publish_at" value="<?= h($form['publish_at']) ?>">
-            <p class="form-hint">Leave blank to make the document available immediately.</p>
+            <p class="form-hint">Leave blank to make the document available immediately. Times use Los Angeles time.</p>
         </div>
         <button type="submit" class="btn">Save changes</button>
     </form>
