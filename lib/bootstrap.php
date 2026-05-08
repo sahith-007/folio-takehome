@@ -127,6 +127,101 @@ function audit_document_schedule_change(int $documentId, ?string $previousPublis
     ]);
 }
 
+function document_admin_identifier(array $doc): string {
+    $readableId = trim((string) ($doc['readable_id'] ?? ''));
+    if ($readableId !== '') {
+        return $readableId;
+    }
+
+    return (string) $doc['id'];
+}
+
+function slugify_document_title(string $title): string {
+    $slug = strtolower($title);
+    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
+    $slug = trim($slug, '-');
+    $slug = substr($slug, 0, 24);
+    $slug = rtrim($slug, '-');
+
+    return $slug !== '' ? $slug : 'document';
+}
+
+function random_readable_suffix(int $length = 4): string {
+    $alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
+    $maxIndex = strlen($alphabet) - 1;
+    $suffix = '';
+
+    for ($i = 0; $i < $length; $i++) {
+        $suffix .= $alphabet[random_int(0, $maxIndex)];
+    }
+
+    return $suffix;
+}
+
+function readable_id_exists(string $readableId): bool {
+    $stmt = db()->prepare('SELECT 1 FROM documents WHERE readable_id = ? LIMIT 1');
+    $stmt->execute([$readableId]);
+    return $stmt->fetchColumn() !== false;
+}
+
+function generate_document_readable_id(string $title): string {
+    $base = slugify_document_title($title);
+
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $candidate = $base . '-' . random_readable_suffix();
+        if (!readable_id_exists($candidate)) {
+            return $candidate;
+        }
+    }
+
+    throw new RuntimeException('Could not generate a unique readable ID.');
+}
+
+function assign_document_readable_id(int $documentId, string $title): string {
+    $stmt = db()->prepare('SELECT readable_id FROM documents WHERE id = ?');
+    $stmt->execute([$documentId]);
+    $existingReadableId = $stmt->fetchColumn();
+
+    if (is_string($existingReadableId) && $existingReadableId !== '') {
+        return $existingReadableId;
+    }
+
+    $readableId = generate_document_readable_id($title);
+
+    $stmt = db()->prepare('UPDATE documents SET readable_id = ? WHERE id = ?');
+    $stmt->execute([$readableId, $documentId]);
+
+    return $readableId;
+}
+
+function find_document_by_admin_identifier($identifier): ?array {
+    $identifier = trim((string) $identifier);
+    if ($identifier === '') {
+        return null;
+    }
+
+    if (ctype_digit($identifier)) {
+        $stmt = db()->prepare('
+            SELECT *
+            FROM documents
+            WHERE id = ? OR readable_id = ?
+            LIMIT 1
+        ');
+        $stmt->execute([(int) $identifier, $identifier]);
+    } else {
+        $stmt = db()->prepare('
+            SELECT *
+            FROM documents
+            WHERE readable_id = ?
+            LIMIT 1
+        ');
+        $stmt->execute([$identifier]);
+    }
+
+    $doc = $stmt->fetch();
+    return $doc !== false ? $doc : null;
+}
+
 function h(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }

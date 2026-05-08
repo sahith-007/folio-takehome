@@ -4,10 +4,7 @@ require __DIR__ . '/../lib/bootstrap.php';
 require __DIR__ . '/../lib/layout.php';
 
 $staff = current_staff();
-$docId = (int) ($_GET['doc'] ?? 0);
-$stmt = db()->prepare('SELECT * FROM documents WHERE id = ?');
-$stmt->execute([$docId]);
-$doc = $stmt->fetch();
+$doc = find_document_by_admin_identifier($_GET['doc'] ?? '');
 
 if (!$doc) {
     http_response_code(404);
@@ -20,6 +17,7 @@ if (!$doc) {
     exit;
 }
 
+$adminIdentifier = document_admin_identifier($doc);
 $error = null;
 $form = [
     'title' => $doc['title'],
@@ -47,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             audit_document_schedule_change((int) $doc['id'], $doc['publish_at'] ?? null, $publishAt);
 
-            header('Location: /document.php?doc=' . $doc['id'] . '&updated=1');
+            header('Location: /document.php?doc=' . urlencode($adminIdentifier) . '&updated=1');
             exit;
         } catch (InvalidArgumentException $e) {
             $error = $e->getMessage();
@@ -61,7 +59,7 @@ render_header('Edit · ' . $doc['title'], $staff);
 <a href="/admin.php" class="back-link">← back to admin</a>
 
 <h1 class="page-title">Edit "<?= h($doc['title']) ?>"</h1>
-<p class="page-subtitle">Update the document body and choose when recipients can view it.</p>
+<p class="page-subtitle">Readable ID <?= h($adminIdentifier) ?> · Update the document body and choose when recipients can view it.</p>
 
 <?php if (!empty($_GET['updated'])): ?>
     <div class="banner banner-success">Document updated.</div>

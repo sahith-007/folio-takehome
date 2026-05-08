@@ -232,6 +232,111 @@ test('scheduled documents stay hidden until publish time and log schedule change
     assert_true(!str_contains($html, $body), 'expected scheduled document body to stay hidden');
 });
 
+test('documents get unique readable IDs and staff routes accept them', function () {
+    $title = 'Quarterly Planning Packet';
+    $firstBody = 'First duplicate-title body.';
+    $secondBody = 'Second duplicate-title body.';
+    $createScript = __DIR__ . '/fixtures/create_document.php';
+
+    system(
+        'php '
+        . escapeshellarg($createScript)
+        . ' '
+        . escapeshellarg($title)
+        . ' '
+        . escapeshellarg($firstBody)
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'first document creation fixture failed');
+
+    system(
+        'php '
+        . escapeshellarg($createScript)
+        . ' '
+        . escapeshellarg($title)
+        . ' '
+        . escapeshellarg($secondBody)
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'second document creation fixture failed');
+
+    $docStmt = db()->prepare('
+        SELECT id, readable_id, body
+        FROM documents
+        WHERE title = ?
+        ORDER BY id ASC
+    ');
+    $docStmt->execute([$title]);
+    $docs = $docStmt->fetchAll();
+
+    assert_true(count($docs) === 2, 'expected two documents with the same title');
+
+    $firstDoc = $docs[0];
+    $secondDoc = $docs[1];
+    $expectedPrefix = slugify_document_title($title) . '-';
+    assert_true($firstDoc['readable_id'] !== $secondDoc['readable_id'], 'expected unique readable IDs for duplicate titles');
+    assert_true(
+        preg_match('/^' . preg_quote($expectedPrefix, '/') . '[23456789abcdefghjkmnpqrstuvwxyz]{4}$/', $firstDoc['readable_id']) === 1,
+        'unexpected first readable ID shape: ' . var_export($firstDoc['readable_id'], true)
+    );
+    assert_true(
+        preg_match('/^' . preg_quote($expectedPrefix, '/') . '[23456789abcdefghjkmnpqrstuvwxyz]{4}$/', $secondDoc['readable_id']) === 1,
+        'unexpected second readable ID shape: ' . var_export($secondDoc['readable_id'], true)
+    );
+    $docStmt = null;
+
+    $updatedBody = 'Updated through the readable document route.';
+    $updateScript = __DIR__ . '/fixtures/update_document.php';
+    system(
+        'php '
+        . escapeshellarg($updateScript)
+        . ' '
+        . escapeshellarg($firstDoc['readable_id'])
+        . ' '
+        . escapeshellarg($title)
+        . ' '
+        . escapeshellarg($updatedBody)
+        . ' '
+        . escapeshellarg('')
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'readable-ID document update fixture failed');
+
+    $docStmt = db()->prepare('SELECT body FROM documents WHERE readable_id = ? LIMIT 1');
+    $docStmt->execute([$firstDoc['readable_id']]);
+    $updatedDoc = $docStmt->fetch();
+    assert_true($updatedDoc !== false, 'expected updated document row');
+    assert_true($updatedDoc['body'] === $updatedBody, 'expected document route to resolve by readable ID');
+    $docStmt = null;
+
+    $shareScript = __DIR__ . '/fixtures/create_share.php';
+    $recipientEmail = 'readable-id@example.com';
+    system(
+        'php '
+        . escapeshellarg($shareScript)
+        . ' '
+        . escapeshellarg($firstDoc['readable_id'])
+        . ' '
+        . escapeshellarg($recipientEmail)
+        . ' > /dev/null',
+        $rc
+    );
+    assert_true($rc === 0, 'readable-ID share creation fixture failed');
+
+    $shareStmt = db()->prepare('
+        SELECT s.id
+        FROM shares s
+        WHERE s.document_id = ? AND s.recipient_email = ?
+        LIMIT 1
+    ');
+    $shareStmt->execute([$firstDoc['id'], $recipientEmail]);
+    $share = $shareStmt->fetch();
+    assert_true($share !== false, 'expected share route to resolve by readable ID');
+});
+
 test('seeded share link resolves to the seeded document', function () {
     $stmt = db()->prepare('
         SELECT d.title

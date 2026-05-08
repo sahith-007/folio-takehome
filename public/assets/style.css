@@ -292,6 +292,13 @@ table.data td.id {
     font-size: 0.85rem;
 }
 
+.table-subtext {
+    margin-top: 0.2rem;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 0.76rem;
+}
+
 .table-actions {
     white-space: nowrap;
 }

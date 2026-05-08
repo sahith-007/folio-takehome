@@ -27,11 +27,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ');
             $stmt->execute([$form['title'], $form['body'], $staff['id'], $publishAt]);
             $docId = (int) db()->lastInsertId();
+            $readableId = assign_document_readable_id($docId, $form['title']);
 
             audit_log('document_created', 'document', $docId, ['title' => $form['title']]);
             audit_document_schedule_change($docId, null, $publishAt);
 
-            header('Location: /admin.php?created=' . $docId);
+            header('Location: /admin.php?created=' . urlencode($readableId));
             exit;
         } catch (InvalidArgumentException $e) {
             $error = $e->getMessage();
@@ -53,7 +54,7 @@ render_header('Admin', $staff);
 <p class="page-subtitle">Create documents and generate share links for recipients.</p>
 
 <?php if (!empty($_GET['created'])): ?>
-    <div class="banner banner-success">Document #<?= (int) $_GET['created'] ?> created.</div>
+    <div class="banner banner-success">Document <?= h((string) $_GET['created']) ?> created.</div>
 <?php endif ?>
 
 <?php if ($error): ?>
@@ -88,7 +89,7 @@ render_header('Admin', $staff);
         <table class="data">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>Readable ID</th>
                     <th>Title</th>
                     <th>Availability</th>
                     <th>Creator</th>
@@ -98,8 +99,12 @@ render_header('Admin', $staff);
             </thead>
             <tbody>
                 <?php foreach ($docs as $d): ?>
+                    <?php $adminIdentifier = document_admin_identifier($d); ?>
                     <tr>
-                        <td class="id">#<?= (int) $d['id'] ?></td>
+                        <td class="id">
+                            <?= h($adminIdentifier) ?>
+                            <div class="table-subtext">Internal #<?= (int) $d['id'] ?></div>
+                        </td>
                         <td><?= h($d['title']) ?></td>
                         <td>
                             <?php if (empty($d['publish_at'])): ?>
@@ -113,8 +118,8 @@ render_header('Admin', $staff);
                         <td><?= h($d['creator_name']) ?></td>
                         <td><?= h($d['created_at']) ?></td>
                         <td class="table-actions">
-                            <a href="/document.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Edit</a>
-                            <a href="/share.php?doc=<?= (int) $d['id'] ?>" class="btn-link">Create share</a>
+                            <a href="/document.php?doc=<?= urlencode($adminIdentifier) ?>" class="btn-link">Edit</a>
+                            <a href="/share.php?doc=<?= urlencode($adminIdentifier) ?>" class="btn-link">Create share</a>
                         </td>
                     </tr>
                 <?php endforeach ?>

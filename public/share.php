@@ -4,10 +4,7 @@ require __DIR__ . '/../lib/bootstrap.php';
 require __DIR__ . '/../lib/layout.php';
 
 $staff = current_staff();
-$docId = (int) ($_GET['doc'] ?? 0);
-$stmt = db()->prepare('SELECT * FROM documents WHERE id = ?');
-$stmt->execute([$docId]);
-$doc = $stmt->fetch();
+$doc = find_document_by_admin_identifier($_GET['doc'] ?? '');
 
 if (!$doc) {
     http_response_code(404);
@@ -20,6 +17,7 @@ if (!$doc) {
     exit;
 }
 
+$adminIdentifier = document_admin_identifier($doc);
 $error = null;
 $created_token = null;
 
@@ -49,7 +47,7 @@ render_header('Share · ' . $doc['title'], $staff);
 <a href="/admin.php" class="back-link">← back to admin</a>
 
 <h1 class="page-title">Share "<?= h($doc['title']) ?>"</h1>
-<p class="page-subtitle">Generate a one-time link for a recipient.</p>
+<p class="page-subtitle">Readable ID <?= h($adminIdentifier) ?> · Generate a one-time link for a recipient.</p>
 
 <?php if (!empty($doc['publish_at']) && !is_document_published($doc['publish_at'])): ?>
     <div class="banner banner-warn">

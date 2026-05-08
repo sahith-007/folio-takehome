@@ -43,6 +43,7 @@ $stmt->execute([
     "Welcome to Folio!\n\nThis is the body of your welcome packet.",
 ]);
 $docId = (int) $pdo->lastInsertId();
+$readableId = assign_document_readable_id($docId, 'Welcome Packet');
 
 $token = random_token();
 $stmt = $pdo->prepare('
@@ -53,4 +54,5 @@ $stmt->execute([$docId, $token, 'recipient@example.com']);
 
 echo "Seeded db.sqlite.\n";
 echo "Admin:        http://localhost:8000/admin.php\n";
+echo "Sample doc:   http://localhost:8000/document.php?doc={$readableId}\n";
 echo "Sample share: http://localhost:8000/view.php?token={$token}\n";
